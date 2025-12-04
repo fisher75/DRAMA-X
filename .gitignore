@@ -1,0 +1,31 @@
+# Python cache
+__pycache__/
+*/__pycache__/
+*.pyc
+*.pyo
+
+# Temporary / log files
+*.log
+*.tmp
+
+# VSCode
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Model checkpoints (避免不小心上传几GB)
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# HuggingFace model configs (允许 JSONL，但不允许模型权重)
+*.h5
+*.ckpt
+
+# You explicitly allow:
+#    DRAMA-X_hf/
+#    drama_intent/
+# DO NOT ignore them
