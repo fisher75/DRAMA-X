@@ -5,6 +5,7 @@
 路径建议：/workspace/chz/code/DRAMA-X/sgg_intent/qwen3_local_sgg_intent.py
 """
 
+# 导入 PyTorch, Transformers, PIL 等深度学习和图像处理库
 import os
 import json
 import time
@@ -21,13 +22,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import torch
 from transformers import AutoProcessor, AutoModelForVision2Seq
 
-# 尝试导入 openai（用于可选的 JSON 修复 fallback，没有则静默跳过）
+# 尝试导入 openai（用于可选的 JSON 修复 fallback，没有则静默跳过）如果这台机器没装也没关系，只是少了一个 fallback 功能
 try:
     import openai  # type: ignore
 except ImportError:
     openai = None
 
 # ========= 命令行参数 =========
+# 接收 run_multi_gpu.py 传过来的参数：处理范围、GPU号、模式
 parser = argparse.ArgumentParser()
 parser.add_argument("--start", type=int, default=0)
 parser.add_argument("--end", type=int, default=None)
@@ -39,6 +41,7 @@ args = parser.parse_args()
 RAW_MODE_FROM_LAUNCHER = bool(args.raw_mode)
 
 # ====== 默认路径配置（请根据你的环境修改） ======
+# 默认数据集路径
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(THIS_DIR)
 
@@ -46,11 +49,14 @@ REPO_ROOT = os.path.dirname(THIS_DIR)
 DEFAULT_DATASET_PATH = os.path.join(REPO_ROOT, "drama_intent", "updated_output.json")
 
 # 默认模型路径（请改成你实际存放 Qwen3-VL 的本地目录）
+# 【重点】默认模型路径。这必须指向服务器上 Qwen3-VL 权重的真实文件夹
 DEFAULT_MODEL_PATH = os.environ.get(
     "QWEN3_VL_MODEL_PATH",
     "/workspace/models/VLM/Qwen3-VL-2B-Instruct",
 )
 
+# 辅助函数：load_dataset_dict
+# 它的作用是兼容性：不管你的数据集是标准的 JSON List 还是 JSONL (一行一个JSON)，都能读进来变成字典
 def load_dataset_dict(path: str) -> Dict[str, Any]:
     """
     同时兼容两种情况：
@@ -93,6 +99,9 @@ def load_dataset_dict(path: str) -> Dict[str, Any]:
 
 class Qwen3LocalSGGInference:
     """
+    推理核心类
+    """
+    """
     本地 Qwen3-VL 版本的 SGG-Intent 推理器：
     - 不依赖 HTTP 接口
     - 完全在本地 GPU 上推理
@@ -107,6 +116,7 @@ class Qwen3LocalSGGInference:
         http_timeout: int = 60,    # 仅用于下载远程图片时
         max_retries: int = 2,
     ):
+        # 初始化函数：加载模型到显卡
         self.dataset_path = dataset_path
         self.model_path = model_path
         self.max_tokens = max_tokens
@@ -123,18 +133,20 @@ class Qwen3LocalSGGInference:
         self.model = AutoModelForVision2Seq.from_pretrained(
             self.model_path,
             trust_remote_code=True,
+            # 根据是否有卡自动选择 bfloat16 (省显存) 或 float32 (无卡时使用)
             torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
             device_map="auto",
         )
         self.device = self.model.device
         print(f"[INFO] Model loaded on device: {self.device}")
 
-        # Prompt 模板
+        # 初始化 Prompt 模板 (这是 prompt engineering 的核心)
         self.scene_graph_prompt_template = self._scene_graph_prompt()
         self.intent_prompt_template = self._intent_prompt()
         self.all_gen_prompt_template = self._all_gen_prompt()
 
         # 可选：用于 JSON fallback 的 OpenAI key（若不存在则不启用）
+        # 检查是否配置了 OpenAI Key，如果配了，当 JSON 解析失败时会用 GPT-4o-mini 帮忙修复
         self.openai_api_key = os.environ.get("OPENAI_API_KEY")
         if openai is not None and self.openai_api_key:
             openai.api_key = self.openai_api_key
@@ -160,110 +172,116 @@ class Qwen3LocalSGGInference:
         return load_dataset_dict(self.dataset_path)
 
 
+    # ====== Prompt 定义区 (非常重要) ======
     def _scene_graph_prompt(self) -> str:
+        # 定义生成 Scene Graph 的 Prompt：要求识别 Object, Attributes, BBox, Relationships
         scene_graph_prompt = """
-For the provided image, generate a scene graph in JSON format that includes the following, be concise and consider only important objects:
-1. Objects in the frame. The special requirement is that you must include every pedestrian and cyclist separately and not group them as people or cyclists.
-2. Object attributes inside object dictionary that are relevant to answering the question. Object attributes should include the state of the object e.g., moving or static, description of the object such as color, orientation, etc.
-3. Object bounding boxes. These should be with respect to the original image dimensions [x1, y1, x2, y2].
-4. Object relationships between objects. This should be detailed, up to 4 words.
+        For the provided image, generate a scene graph in JSON format that includes the following, be concise and consider only important objects:
+        1. Objects in the frame. The special requirement is that you must include every pedestrian and cyclist separately and not group them as people or cyclists.
+        2. Object attributes inside object dictionary that are relevant to answering the question. Object attributes should include the state of the object e.g., moving or static, description of the object such as color, orientation, etc.
+        3. Object bounding boxes. These should be with respect to the original image dimensions [x1, y1, x2, y2].
+        4. Object relationships between objects. This should be detailed, up to 4 words.
 
-Limit your response to at most 5 most relevant objects in the scene.
+        Limit your response to at most 5 most relevant objects in the scene.
 
-An example structure would look like this:
-{
-  "Objects": {
-    "name_of_object": {
-      "attributes": [],
-      "bounding_box": [x1, y1, x2, y2]
-    }
-  },
-  "Relationships": [
-    {
-      "from": "name_of_object1",
-      "to": "name_of_object2",
-      "relationship": "relationship between obj_1 and obj_2"
-    }
-  ]
-}
+        An example structure would look like this:
+        {
+        "Objects": {
+            "name_of_object": {
+            "attributes": [],
+            "bounding_box": [x1, y1, x2, y2]
+            }
+        },
+        "Relationships": [
+            {
+            "from": "name_of_object1",
+            "to": "name_of_object2",
+            "relationship": "relationship between obj_1 and obj_2"
+            }
+        ]
+        }
 
-Strictly output ONLY ONE valid JSON object. Do NOT output any explanation.
-Scene Graph:
-"""
+        Strictly output ONLY ONE valid JSON object. Do NOT output any explanation.
+        Scene Graph:
+        """
         return scene_graph_prompt.strip()
 
     def _intent_prompt(self) -> str:
+        # 定义生成 Intent 的 Prompt：要求基于 Scene Graph 预测 Lateral/Vertical Intent
         intent_prompt = """
-For the provided scene graph, image, and question, generate an object-intent JSON which includes the following:
-1. All objects from the scene graph.
-2. Predicted intent for every object. Intent should be one of these values:
+        For the provided scene graph, image, and question, generate an object-intent JSON which includes the following:
+        1. All objects from the scene graph.
+        2. Predicted intent for every object. Intent should be one of these values:
 
-2.1 Lateral (Sideways) Intent Options (exactly one of these):
-     - "goes to the left"
-     - "goes to the right"
+        2.1 Lateral (Sideways) Intent Options (exactly one of these):
+            - "goes to the left"
+            - "goes to the right"
 
-2.2 Vertical Intent Options (exactly one of these):
-     - "moves away from ego vehicle"
-     - "moves towards ego vehicle"
-     - "stationary"
+        2.2 Vertical Intent Options (exactly one of these):
+            - "moves away from ego vehicle"
+            - "moves towards ego vehicle"
+            - "stationary"
 
-3. Reason for this prediction (in natural language).
-4. Bounding box of the object [x1, y1, x2, y2] with respect to original image dimensions.
+        3. Reason for this prediction (in natural language).
+        4. Bounding box of the object [x1, y1, x2, y2] with respect to original image dimensions.
 
-The output MUST be a dictionary of the form:
-{
-  "name_of_object": {
-    "Intent": ["predicted lateral intent", "predicted vertical intent"],
-    "Reason": "reason for this prediction",
-    "Bounding_box": [x1, y1, x2, y2]
-  },
-  ...
-}
+        The output MUST be a dictionary of the form:
+        {
+        "name_of_object": {
+            "Intent": ["predicted lateral intent", "predicted vertical intent"],
+            "Reason": "reason for this prediction",
+            "Bounding_box": [x1, y1, x2, y2]
+        },
+        ...
+        }
 
-The "Intent" field list MUST ALWAYS have exactly two values (first lateral, then vertical).
-Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or scene graph details.
-"""
+        The "Intent" field list MUST ALWAYS have exactly two values (first lateral, then vertical).
+        Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or scene graph details.
+        """
         return intent_prompt.strip()
 
     def _all_gen_prompt(self) -> str:
+        # 【One-pass 模式】Prompt：
+        # 要求一次性输出：Risk Score, Action, 以及每个 Object 的 Intent, Reason, Bbox
+        # 这是为了加速推理，不用跑两遍模型
         all_gen_prompt = """
-For the provided image and question, generate an object-intent JSON which includes the following:
-1. AT MOST 5 objects from the scene including pedestrians and cyclists.
-2. Predicted intent for every object. Intent should be one of these values:
+        For the provided image and question, generate an object-intent JSON which includes the following:
+        1. AT MOST 5 objects from the scene including pedestrians and cyclists.
+        2. Predicted intent for every object. Intent should be one of these values:
 
-2.1 Lateral (Sideways) Intent Options (exactly one of these):
-     - "goes to the left"
-     - "goes to the right"
+        2.1 Lateral (Sideways) Intent Options (exactly one of these):
+            - "goes to the left"
+            - "goes to the right"
 
-2.2 Vertical Intent Options (exactly one of these):
-     - "moves away from ego vehicle"
-     - "moves towards ego vehicle"
-     - "stationary"
+        2.2 Vertical Intent Options (exactly one of these):
+            - "moves away from ego vehicle"
+            - "moves towards ego vehicle"
+            - "stationary"
 
-3. Risk score for this scene ("Yes" or "No"). Risk is defined as a hazardous scenario that poses danger to the ego vehicle.
-4. Bounding box of each object [x1, y1, x2, y2] with respect to original image dimensions.
-5. Suggested action for the ego vehicle given the scene and the risk score.
+        3. Risk score for this scene ("Yes" or "No"). Risk is defined as a hazardous scenario that poses danger to the ego vehicle.
+        4. Bounding box of each object [x1, y1, x2, y2] with respect to original image dimensions.
+        5. Suggested action for the ego vehicle given the scene and the risk score.
 
-The output MUST be a single JSON object, for example:
-{
-  "Risk": "Yes" or "No",
-  "Suggested_action": "suggested action for ego vehicle",
-  "pedestrian_1": {
-    "Intent": ["predicted lateral intent", "predicted vertical intent"],
-    "Reason": "reason for this prediction",
-    "Bounding_box": [x1, y1, x2, y2]
-  },
-  "car_1": {
-    "Intent": ["predicted lateral intent", "predicted vertical intent"],
-    "Reason": "reason for this prediction",
-    "Bounding_box": [x1, y1, x2, y2]
-  }
-  ...
-}
+        The output MUST be a single JSON object, for example:
+        {
+        "Risk": "Yes" or "No",
+        "Suggested_action": "suggested action for ego vehicle",
+        "pedestrian_1": {
+            "Intent": ["predicted lateral intent", "predicted vertical intent"],
+            "Reason": "reason for this prediction",
+            "Bounding_box": [x1, y1, x2, y2]
+        },
+        "car_1": {
+            "Intent": ["predicted lateral intent", "predicted vertical intent"],
+            "Reason": "reason for this prediction",
+            "Bounding_box": [x1, y1, x2, y2]
+        }
+        ...
+        }
 
-The "Intent" field list MUST ALWAYS have exactly two values (first lateral, then vertical).
-Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or scene graph details.
-"""
+        The "Intent" field list MUST ALWAYS have exactly two values (first lateral, then vertical).
+        Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or scene graph details.
+        """
         return all_gen_prompt.strip()
 
     # ====== 图像加载 + 推理封装 ======
@@ -278,6 +296,12 @@ Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or sce
         return img
 
     def _generate_with_image_and_text(self, image: Image.Image, prompt: str) -> str:
+        # 标准的 HuggingFace 推理流程
+        # 1. 构造 chat template
+        # 2. processor 处理图文 -> input_ids
+        # 3. model.generate 生成 token
+        # 4. processor.batch_decode 解码成字符串
+        # ...
         messages = [
             {
                 "role": "user",
@@ -319,6 +343,14 @@ Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or sce
     # ====== JSON 提取+修复 ======
 
     def extract_and_fix_json(self, raw: str, prompt_type: str) -> dict:
+        """
+        这个函数是为了解决 VLM 输出不稳定的问题。
+        流程：
+        1. 用正则提取 <BEGIN_JSON>...<END_JSON> 之间的内容，或者找第一个 { 和 最后一个 }。
+        2. _basic_fix: 进行简单的字符串替换（比如中文引号换英文引号，True换true）。
+        3. 尝试 json.loads，如果成功直接返回。
+        4. 如果还报错，且有 OpenAI Key -> 调用 GPT-4o-mini 把坏 JSON 修好。
+        """
         import json as pyjson
 
         def _extract_balanced(s: str) -> str:
@@ -408,8 +440,10 @@ Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or sce
             )
 
     # ====== 三个核心任务函数 ======
-
+    # ====== 任务处理函数 ======
     def process_image_for_scene_graph(self, image_path: str) -> Dict[str, Any]:
+        # One-pass 模式的具体执行流：
+        # 加载图 -> 拼接 all_gen_prompt -> 生成 -> 提取JSON
         try:
             img = self._load_image(image_path)
             prompt = (
@@ -486,10 +520,14 @@ Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or sce
 
     def run_inference_dict(self, data_dict, overwrite=True, raw=True):
         """
+        这是被 main 函数调用的主循环
+        """
+        """
         多GPU版本使用的核心函数：
         - 输入是子数据字典 data_dict
         - 每个进程写入独立的 *_gpuX.json，防止冲突
         """
+        # 构造输出路径，文件名带 _gpuX 后缀，防止多进程写同一个文件冲突
         out_dir = os.path.join(
             os.path.dirname(self.dataset_path),
             "outputs",
@@ -552,8 +590,14 @@ Strictly output ONLY ONE valid JSON object. Do NOT output any explanation or sce
         chunks = [items[i: i + concur] for i in range(0, len(items), concur)]
 
         processed = 0
+        # 使用 ThreadPoolExecutor 线程池
+        # 虽然 Python 有 GIL，但在 I/O (加载图片) 密集型任务中，多线程能稍微加速
+        # 并且能控制并发数 (rate_limit)，防止显存瞬间爆掉
         with ThreadPoolExecutor(max_workers=concur) as exe:
+            # 提交任务
             for batch in tqdm(chunks, desc=f"GPU {gpu_id} Processing"):
+                # 处理结果并实时写入文件
+                # 这是一个很好的习惯：跑完一批存一批，防止程序崩了白跑
                 futures = {
                     exe.submit(self._process_frame, fid, fdata, raw): fid
                     for fid, fdata in batch
@@ -601,6 +645,8 @@ if __name__ == "__main__":
     print(f"[INFO] start={args.start}, end={args.end}, gpu_arg={args.gpu}, "
           f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', 'NOT_SET')}")
 
+    # 这里的逻辑是被 run_multi_gpu.py 调用的
+    # 1. 初始化推理类
     infer = Qwen3LocalSGGInference(
         dataset_path=dataset_path,
         model_path=model_path,
@@ -610,11 +656,13 @@ if __name__ == "__main__":
         max_retries=2,
     )
 
+    # 2. 切分数据 (data[start:end])
     data = infer.load_data()
     keys = list(data.keys())
     sub_keys = keys[args.start: args.end]
     sub_data = {k: data[k] for k in sub_keys}
 
+    # 3. 开始跑
     infer.run_inference_dict(
         sub_data,
         overwrite=True,
