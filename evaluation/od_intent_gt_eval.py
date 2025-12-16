@@ -310,7 +310,7 @@ def evaluate_intents(ground_truth, predictions, num_samples, skip_bbox_matching=
                       # Check if we found a match with sufficient IoU or if we're skipping bbox matching
                       if (skip_bbox_matching and best_match) or (not skip_bbox_matching and best_match and best_iou >= 0.6):
                           pred_intent = best_match.get('Intent', [])
-                          print(pred_intent)
+                          # print(pred_intent) # 不是必须打印！
                           if isinstance(pred_intent, str):
                             pred_intent = [pred_intent, pred_intent]
                           # Compare horizontal intent (first element)

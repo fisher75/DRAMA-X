@@ -1,0 +1,22 @@
+{
+  "num_gt_samples": 5686,
+  "num_pred_samples": 4381,
+  "num_overlap": 4379,
+  "num_missing_pred": 1305,
+  "num_extra_pred": 0,
+  "accuracy": 0.3836492349851564,
+  "balanced_accuracy": 0.5872879674426066,
+  "precision_pos": 0.986360818350899,
+  "recall_pos": 0.37277413308341145,
+  "f1_pos": 0.5410644448223091,
+  "confusion_matrix_[[TN,FP],[FN,TP]]": [
+    [
+      89,
+      22
+    ],
+    [
+      2677,
+      1591
+    ]
+  ]
+}
