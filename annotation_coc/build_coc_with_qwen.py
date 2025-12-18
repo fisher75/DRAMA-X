@@ -29,8 +29,8 @@ python build_coc_with_qwen.py \
   --data_parallel \
   --preserve_order
 
-实际使用：
-CUDA_VISIBLE_DEVICES=0,1,2
+实际使用：(必须显式定义才能真正3卡或者2卡，不然总是4卡。)
+export CUDA_VISIBLE_DEVICES=0,1,2
 python build_coc_with_qwen.py --structured_path /workspace/chz/code/DRAMA-X/annotation_coc/drama_x_structured.jsonl --output_path /workspace/chz/code/DRAMA-X/annotation_coc/drama_x_coc_qwen3vl_2b.jsonl --model_path /workspace/models/VLM/Qwen3-VL-2B-Instruct --data_parallel --preserve_order
 
 关键修复：
@@ -417,7 +417,7 @@ Do not add any extra keys besides these three.
 
 
         # =========================
-        # ✅ 修复 3：forward 自检 —— 就加在这里
+        # ✅ 修复 3：forward 自检
         # =========================
         if self.verbose_debug and "image_grid_thw" in inputs:
             print("[DEBUG] image_grid_thw =", inputs["image_grid_thw"].cpu().tolist())
@@ -426,15 +426,16 @@ Do not add any extra keys besides these three.
             N = pv.shape[1] if pv.ndim == 3 else pv.shape[0]
             print("[DEBUG] pixel_values tokens N =", int(N))
         
-        try:
-            _ = self.model(**inputs, return_dict=True)
-        except Exception as e:
-            print(f"[SELF-CHECK] forward failed on sample_id={sample.get('sample_id')}")
-            # 你也可以在这里 dump shapes，定位更快
-            for kk, vv in inputs.items():
-                if isinstance(vv, torch.Tensor):
-                    print(f"[DUMP] {kk}: shape={tuple(vv.shape)} dtype={vv.dtype} device={vv.device}")
-            raise e  # 让它直接报栈，方便你贴给我
+        if self.verbose_debug: # 是无条件执行的——也就是说你每条样本做两次前向：一次 self-check，一次 generate()（generate 内部也会 forward）。把它改成只在 --verbose_debug 时启用，或者只对前 K 条启用（比如前 5 条），否则全量跑会非常慢。
+            try:
+                _ = self.model(**inputs, return_dict=True)
+            except Exception as e:
+                print(f"[SELF-CHECK] forward failed on sample_id={sample.get('sample_id')}")
+                # 你也可以在这里 dump shapes，定位更快
+                for kk, vv in inputs.items():
+                    if isinstance(vv, torch.Tensor):
+                        print(f"[DUMP] {kk}: shape={tuple(vv.shape)} dtype={vv.dtype} device={vv.device}")
+                raise e  # 让它直接报栈，方便你贴给我
 
         # 7) forward 过了，才进入 generate
         generated_ids = self.model.generate(**inputs, max_new_tokens=self.max_tokens)
