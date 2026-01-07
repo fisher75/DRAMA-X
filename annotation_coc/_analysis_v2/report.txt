@@ -1,0 +1,26 @@
+==== Coverage Summary ====
+structured_total = 5686
+ok_total         = 4937
+fail_total       = 749
+missing_est      = 0  (structured - ok - fail)
+
+==== Top 30 Fail Reasons ====
+748	parse:unbalanced
+1	parse:json_parse_fail
+
+==== Top 30 Fail Stages ====
+749	parse
+
+==== Top 30 (Reason × Stage) ====
+748	parse:unbalanced	parse
+1	parse:json_parse_fail	parse
+
+==== Fail Risk Label Distribution ====
+742	high
+7	low
+
+==== Fail VRU Count Distribution ====
+568	3
+98	4
+83	2
+
