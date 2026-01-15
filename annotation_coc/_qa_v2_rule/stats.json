@@ -1,0 +1,24 @@
+{
+  "total": 5679,
+  "risk_label_dist": {
+    "high": 5528,
+    "low": 151
+  },
+  "decision_dist": {
+    "SLOW": 2955,
+    "GO": 214,
+    "STOP": 2510
+  },
+  "consistency_dist": {
+    "ok": 5613,
+    "conflict_high_go": 65,
+    "conflict_low_stop": 1
+  },
+  "low_margin_thr": 0.1,
+  "low_margin_count": 1309,
+  "low_info_count": 0,
+  "trace_len_min": 115,
+  "trace_len_p50": 206,
+  "trace_len_p90": 269,
+  "trace_len_max": 427
+}
