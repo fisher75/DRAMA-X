@@ -1,0 +1,91 @@
+{
+  "os": "Linux-6.8.0-87-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.10.19",
+  "startedAt": "2026-01-18T12:52:41.817075Z",
+  "args": [
+    "--train_jsonl",
+    "./splits_v1/train.jsonl",
+    "--val_jsonl",
+    "./splits_v1/val.jsonl",
+    "--data_root",
+    "/data2/automan/data/drama_data",
+    "--out_dir",
+    "./runs/phase1_swin_t_ddp_full",
+    "--num_frames",
+    "8",
+    "--img_size",
+    "224",
+    "--stride",
+    "2",
+    "--batch_size",
+    "8",
+    "--epochs",
+    "50",
+    "--lr",
+    "2e-4",
+    "--weight_decay",
+    "0.05",
+    "--amp",
+    "--pretrained",
+    "--ddp",
+    "--gpus",
+    "4",
+    "--wandb",
+    "--wandb_run_name",
+    "SwinT-Full-Run-v2"
+  ],
+  "program": "-m drama_fast.train.train_phase1",
+  "git": {
+    "remote": "https://github.com/fisher75/DRAMA-X.git",
+    "commit": "f4f1c0fe067c50555b546af7db68ef6c20a5e70d"
+  },
+  "email": "chi1996705@outlook.com",
+  "root": "runs/phase1_swin_t_ddp_full",
+  "host": "colab-automan",
+  "executable": "/workspace/conda_envs/dramax/bin/python",
+  "cpu_count": 24,
+  "cpu_count_logical": 48,
+  "gpu": "NVIDIA RTX A5000",
+  "gpu_count": 4,
+  "disk": {
+    "/": {
+      "total": "1888559353856",
+      "used": "585526444032"
+    }
+  },
+  "memory": {
+    "total": "202427023360"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA RTX A5000",
+      "memoryTotal": "24146608128",
+      "cudaCores": 8192,
+      "architecture": "Ampere",
+      "uuid": "GPU-13ad800e-d383-cdc9-7f6e-13ed435dff01"
+    },
+    {
+      "name": "NVIDIA RTX A5000",
+      "memoryTotal": "24146608128",
+      "cudaCores": 8192,
+      "architecture": "Ampere",
+      "uuid": "GPU-0fb981e9-ebc8-eccf-1a32-9717c3dacd11"
+    },
+    {
+      "name": "NVIDIA RTX A5000",
+      "memoryTotal": "24146608128",
+      "cudaCores": 8192,
+      "architecture": "Ampere",
+      "uuid": "GPU-013a4836-077b-fa20-2fc7-31bdca6eecde"
+    },
+    {
+      "name": "NVIDIA RTX A5000",
+      "memoryTotal": "24146608128",
+      "cudaCores": 8192,
+      "architecture": "Ampere",
+      "uuid": "GPU-12a00fdc-6946-8af4-f7d8-d514eb88d457"
+    }
+  ],
+  "cudaVersion": "13.0",
+  "writerId": "2k4l5amfw3r1c8kjy0qqjpytumdc504w"
+}

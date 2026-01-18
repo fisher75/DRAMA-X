@@ -29,3 +29,5 @@ Thumbs.db
 #    DRAMA-X_hf/
 #    drama_intent/
 # DO NOT ignore them
+
+fast_system/runs/**/*.jpg
