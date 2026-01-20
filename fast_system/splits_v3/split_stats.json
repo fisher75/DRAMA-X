@@ -1,0 +1,55 @@
+{
+  "input": "/workspace/chz/code/DRAMA-X/annotation_coc/drama_x_fast_sup_v3_topk5.jsonl",
+  "out_dir": "/workspace/chz/code/DRAMA-X/fast_system/splits_v3",
+  "num_clips": 5679,
+  "split": {
+    "train": {
+      "num_samples": 4535,
+      "risk_min": 0.37011317298502705,
+      "risk_mean": 0.6275034767439999,
+      "risk_max": 1.0601917864496961,
+      "top_types": [
+        [
+          "pedestrian",
+          4362
+        ],
+        [
+          "cyclist",
+          173
+        ]
+      ]
+    },
+    "val": {
+      "num_samples": 582,
+      "risk_min": 0.37016531728201435,
+      "risk_mean": 0.637939262388136,
+      "risk_max": 1.0587979846628486,
+      "top_types": [
+        [
+          "pedestrian",
+          555
+        ],
+        [
+          "cyclist",
+          27
+        ]
+      ]
+    },
+    "test": {
+      "num_samples": 562,
+      "risk_min": 0.3701879416629078,
+      "risk_mean": 0.6255851165947434,
+      "risk_max": 1.0570014065394793,
+      "top_types": [
+        [
+          "pedestrian",
+          544
+        ],
+        [
+          "cyclist",
+          18
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,169 @@
+_wandb:
+    value:
+        cli_version: 0.24.0
+        e:
+            ml0rkmutfrnfqcuxh84jrsfoolo3wvcd:
+                args:
+                    - --train_jsonl
+                    - ./splits_v1/train.jsonl
+                    - --val_jsonl
+                    - ./splits_v1/val.jsonl
+                    - --data_root
+                    - /data2/automan/data/drama_data
+                    - --out_dir
+                    - ./runs/phase1_swin_t_ddp_full
+                    - --num_frames
+                    - "8"
+                    - --img_size
+                    - "224"
+                    - --stride
+                    - "2"
+                    - --batch_size
+                    - "8"
+                    - --epochs
+                    - "50"
+                    - --lr
+                    - "2e-4"
+                    - --weight_decay
+                    - "0.05"
+                    - --amp
+                    - --pretrained
+                    - --ddp
+                    - --gpus
+                    - "4"
+                    - --wandb
+                    - --wandb_run_name
+                    - SwinT-Full-Run-v2
+                cpu_count: 24
+                cpu_count_logical: 48
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "1888559353856"
+                        used: "586297327616"
+                email: chi1996705@outlook.com
+                executable: /workspace/conda_envs/dramax/bin/python
+                git:
+                    commit: 98d322719f63bf1b8902784d15223f80a289db2d
+                    remote: https://github.com/fisher75/DRAMA-X.git
+                gpu: NVIDIA RTX A5000
+                gpu_count: 4
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-13ad800e-d383-cdc9-7f6e-13ed435dff01
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-0fb981e9-ebc8-eccf-1a32-9717c3dacd11
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-013a4836-077b-fa20-2fc7-31bdca6eecde
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-12a00fdc-6946-8af4-f7d8-d514eb88d457
+                host: colab-automan
+                memory:
+                    total: "202427023360"
+                os: Linux-6.8.0-87-generic-x86_64-with-glibc2.35
+                program: -m drama_fast.train.train_phase1
+                python: CPython 3.10.19
+                root: runs/phase1_swin_t_ddp_full
+                startedAt: "2026-01-18T15:13:53.575988Z"
+                writerId: ml0rkmutfrnfqcuxh84jrsfoolo3wvcd
+        m: []
+        python_version: 3.10.19
+        t:
+            "1":
+                - 1
+                - 41
+            "2":
+                - 1
+                - 41
+            "3":
+                - 13
+                - 15
+                - 16
+            "4": 3.10.19
+            "5": 0.24.0
+            "12": 0.24.0
+            "13": linux-x86_64
+accum_steps:
+    value: 1
+amp:
+    value: true
+batch_size:
+    value: 8
+data_root:
+    value: /data2/automan/data/drama_data
+ddp:
+    value: true
+epochs:
+    value: 50
+eval_batch_size:
+    value: null
+freeze_backbone:
+    value: false
+gpus:
+    value: 4
+grad_clip:
+    value: 1
+img_size:
+    value: 224
+lambda_box:
+    value: 1
+lambda_risk:
+    value: 2
+lr:
+    value: 0.0002
+master_addr:
+    value: 127.0.0.1
+master_port:
+    value: 29501
+min_lr:
+    value: 2e-06
+num_frames:
+    value: 8
+num_workers:
+    value: 8
+out_dir:
+    value: ./runs/phase1_swin_t_ddp_full
+pretrained:
+    value: true
+resume:
+    value: ""
+seed:
+    value: 42
+stride:
+    value: 2
+topk_targets:
+    value: 1
+train_jsonl:
+    value: ./splits_v1/train.jsonl
+val_jsonl:
+    value: ./splits_v1/val.jsonl
+verbose_every:
+    value: 0
+wandb:
+    value: true
+wandb_entity:
+    value: haozhuangchi
+wandb_log_every:
+    value: 50
+wandb_project:
+    value: aumovio
+wandb_run_name:
+    value: SwinT-Full-Run-v2
+wandb_tags:
+    value: ""
+warmup_ratio:
+    value: 0.05
+weight_decay:
+    value: 0.05

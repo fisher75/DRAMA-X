@@ -7,8 +7,8 @@ from the same clip.
 
 Run:
   python -m drama_fast.train.make_split \
-    --input_jsonl ../annotation_coc/drama_x_fast_sup_v2_rule.jsonl \
-    --out_dir ./splits_v1 \
+    --input_jsonl /workspace/chz/code/DRAMA-X/annotation_coc/drama_x_fast_sup_v3_topk5.jsonl \
+    --out_dir ./splits_v3 \
     --train_ratio 0.8 --val_ratio 0.1 --test_ratio 0.1
 """
 

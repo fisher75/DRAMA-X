@@ -198,38 +198,48 @@ class DramaFastDataset(Dataset):
         # [T,3,H,W] -> [3,T,H,W]
         video = torch.stack(frames, dim=0).permute(1, 0, 2, 3)
         video = (video - self.mean) / self.std
-
         # 4) Targets
         targets = item.get("targets", [])
-        if not targets:
-            # allow training to continue but mark as invalid
-            gt_box = torch.zeros(4)
-            gt_risk = torch.zeros(())
-            boxes_topk = torch.zeros((0, 4))
-            risks_topk = torch.zeros((0,))
-        else:
+
+        # Always return fixed-shape topk targets with a valid-mask.
+        # This makes default collate safe even when a sample has <K targets.
+        K = int(self.topk_targets)
+        boxes_topk = torch.zeros((K, 4), dtype=torch.float32)
+        risks_topk = torch.zeros((K,), dtype=torch.float32)
+        mask_topk = torch.zeros((K,), dtype=torch.bool)
+
+        if targets:
             # optional sorting: make sure top-1 is the 'primary' you want
             if self.sort_targets_by == "risk_score":
                 targets = sorted(targets, key=lambda d: float(d.get("risk_score", 0.0)), reverse=True)
 
-            topk = min(self.topk_targets, len(targets))
+            topk = min(K, len(targets))
             top_targets = targets[:topk]
 
             boxes = [self._normalize_box_xyxy(t["bbox_xyxy"], W=W, H=H) for t in top_targets]
             risks = [float(t.get("risk_score", 0.0)) for t in top_targets]
 
-            boxes_topk = torch.stack(boxes, dim=0) if boxes else torch.zeros((0, 4))
-            risks_topk = torch.tensor(risks, dtype=torch.float32).clamp(0, 1)
+            if boxes:
+                boxes_topk[:topk] = torch.stack(boxes, dim=0)
+                risks_topk[:topk] = torch.tensor(risks, dtype=torch.float32).clamp(0, 1)
+                mask_topk[:topk] = True
 
+        # primary supervision keeps backward compatibility
+        if bool(mask_topk[0]):
             gt_box = boxes_topk[0]
             gt_risk = risks_topk[0]
+        else:
+            gt_box = torch.zeros(4, dtype=torch.float32)
+            gt_risk = torch.zeros((), dtype=torch.float32)
 
         out: Dict[str, Any] = {
+
             "pixel_values": video,  # [3, T, 224, 224]
             "gt_box": gt_box,        # [4] normalized xyxy
             "gt_risk": gt_risk,      # scalar in [0,1]
             "gt_boxes_topk": boxes_topk,
             "gt_risks_topk": risks_topk,
+            "gt_mask_topk": mask_topk,
         }
 
         if self.return_meta:
@@ -247,17 +257,28 @@ class DramaFastDataset(Dataset):
 
 
 def default_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Simple collate that keeps meta as a list."""
+    """Collate that keeps meta as a list.
+
+    Notes:
+    - gt_boxes_topk: [B,K,4] padded
+    - gt_risks_topk: [B,K] padded
+    - gt_mask_topk : [B,K] bool mask
+    """
     pixel_values = torch.stack([b["pixel_values"] for b in batch], dim=0)  # [B,3,T,H,W]
     gt_box = torch.stack([b["gt_box"] for b in batch], dim=0)
     gt_risk = torch.stack([b["gt_risk"] for b in batch], dim=0)
+
+    gt_boxes_topk = torch.stack([b["gt_boxes_topk"] for b in batch], dim=0)
+    gt_risks_topk = torch.stack([b["gt_risks_topk"] for b in batch], dim=0)
+    gt_mask_topk = torch.stack([b["gt_mask_topk"] for b in batch], dim=0)
 
     out = {
         "pixel_values": pixel_values,
         "gt_box": gt_box,
         "gt_risk": gt_risk,
-        "gt_boxes_topk": [b["gt_boxes_topk"] for b in batch],
-        "gt_risks_topk": [b["gt_risks_topk"] for b in batch],
+        "gt_boxes_topk": gt_boxes_topk,
+        "gt_risks_topk": gt_risks_topk,
+        "gt_mask_topk": gt_mask_topk,
     }
     if "meta" in batch[0]:
         out["meta"] = [b["meta"] for b in batch]

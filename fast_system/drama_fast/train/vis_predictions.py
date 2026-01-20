@@ -13,6 +13,26 @@ Example:
     --ckpt ./runs/phase1_swin_t/best.pt \
     --out_dir ./runs/phase1_swin_t/vis_val \
     --num_frames 8 --img_size 224 --max_vis 100
+    
+训练之后：
+  python -m drama_fast.train.vis_predictions \
+    --jsonl ./splits_v1/val.jsonl \
+    --data_root $DRAMA_DATA_ROOT \
+    --ckpt /workspace/chz/code/DRAMA-X/fast_system/runs/phase1_swin_t_ddp_full/best.pt \
+    --out_dir ./runs/phase1_swin_t_ddp_full/vis_val \
+    --num_frames 8 \
+    --img_size 224 \
+    --max_vis 100
+
+20260120
+  python -m drama_fast.train.vis_predictions \
+    --jsonl ./splits_v3/val.jsonl \
+    --data_root $DRAMA_DATA_ROOT \
+    --ckpt /workspace/chz/code/DRAMA-X/fast_system/runs/phase1_swin_t_v3_single_giou_384/best.pt \
+    --out_dir ./runs/phase1_swin_t_v3_single_giou_384/vis_val \
+    --num_frames 8 \
+    --img_size 384 \
+    --max_vis 100
 """
 
 from __future__ import annotations
@@ -42,9 +62,16 @@ def _strip_module_prefix(state: Dict[str, torch.Tensor]) -> Dict[str, torch.Tens
 
 
 def load_checkpoint(model: torch.nn.Module, ckpt_path: str, device: torch.device) -> None:
+    print(f"Loading checkpoint from {ckpt_path} ...")
     obj = torch.load(ckpt_path, map_location=device)
-    state = obj.get("model", obj)
+    # 兼容直接保存 model.state_dict() 或保存了完整 dict 的情况
+    if isinstance(obj, dict) and "model" in obj:
+        state = obj["model"]
+    else:
+        state = obj
+    
     model.load_state_dict(_strip_module_prefix(state), strict=True)
+    print("Checkpoint loaded.")
 
 
 def box_iou_xyxy(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
@@ -81,9 +108,13 @@ def draw_one(image_path: str, out_path: str, gt_box: List[float], pred_box: List
              gt_risk: float, pred_risk: float, extra_text: str = "") -> None:
     from PIL import Image, ImageDraw, ImageFont
 
-    im = Image.open(image_path).convert("RGB")
-    W, H = im.size
+    try:
+        im = Image.open(image_path).convert("RGB")
+    except Exception as e:
+        print(f"Error opening image {image_path}: {e}")
+        return
 
+    W, H = im.size
     draw = ImageDraw.Draw(im)
 
     # boxes
@@ -100,12 +131,21 @@ def draw_one(image_path: str, out_path: str, gt_box: List[float], pred_box: List
         text += f" | {extra_text}"
 
     try:
-        font = ImageFont.truetype("DejaVuSans.ttf", 22)
+        # 尝试加载一个更好看的字体，或者直接用默认
+        # Linux常见路径，或者改为你有的 ttf
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
     except Exception:
         font = ImageFont.load_default()
 
     # text background
-    tw, th = draw.textbbox((0, 0), text, font=font)[2:]
+    try:
+        left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+        tw, th = right - left, bottom - top
+    except AttributeError:
+        # 老版本 Pillow
+        tw, th = draw.textsize(text, font=font)
+
+    # 画文字背景框，稍微留点边距
     draw.rectangle([10, 10, 10 + tw + 10, 10 + th + 10], fill=(0, 0, 0))
     draw.text((15, 15), text, fill=(255, 255, 255), font=font)
 
@@ -127,6 +167,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--num_frames", type=int, default=8)
     ap.add_argument("--stride", type=int, default=1)
     ap.add_argument("--img_size", type=int, default=224)
+    ap.add_argument("--num_queries", type=int, default=1, help="number of learnable queries")
     ap.add_argument("--topk_targets", type=int, default=1)
 
     ap.add_argument("--batch_size", type=int, default=8)
@@ -147,6 +188,7 @@ def main() -> None:
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
+    print(f"Initializing Dataset from {args.jsonl} ...")
     ds = DramaFastDataset(
         jsonl_path=args.jsonl,
         data_root=args.data_root,
@@ -154,41 +196,65 @@ def main() -> None:
         stride=args.stride,
         img_size=args.img_size,
         topk_targets=args.topk_targets,
-        strict=True,
+        # strict=True, # 如果你的 Dataset __init__ 里没这个参数就去掉
     )
 
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
-    model = FastSystemPhase1(pretrained=args.pretrained, freeze_backbone=args.freeze_backbone).to(device)
+    print("Initializing Model...")
+    model = FastSystemPhase1(img_size=args.img_size, pretrained=args.pretrained, freeze_backbone=args.freeze_backbone, num_queries=args.num_queries).to(device)
     load_checkpoint(model, args.ckpt, device)
     model.eval()
 
     os.makedirs(args.out_dir, exist_ok=True)
     pred_jsonl_path = os.path.join(args.out_dir, "predictions.jsonl")
 
+    print(f"Starting visualization -> {args.out_dir}")
     n_done = 0
+    
     with open(pred_jsonl_path, "w", encoding="utf-8") as f_out:
         with torch.no_grad():
             for batch in dl:
+                if n_done >= args.max_vis:
+                    break
+
                 pixel_values = batch["pixel_values"].to(device, non_blocking=True)
                 gt_box = batch["gt_box"].to(device, non_blocking=True)
                 gt_risk = batch["gt_risk"].to(device, non_blocking=True)
-                meta = batch["meta"]
+                
+                # --- 修复部分 Start ---
+                # DataLoader 默认把 list[dict] collate 成了 dict[str, list/tuple]
+                # 所以 meta 是一个字典，而不是列表
+                meta_batch = batch["meta"] 
+                # --- 修复部分 End ---
 
-                pred_box, pred_risk = model(pixel_values)
+                out = model(pixel_values)
+                if isinstance(out, tuple) and len(out) == 2 and isinstance(out[0], torch.Tensor) and out[0].dim() == 3:
+                    pred_boxes, pred_risks = out  # [B,Q,4], [B,Q]
+                    q = pred_risks.argmax(dim=1)
+                    ar = torch.arange(pred_boxes.shape[0], device=pred_boxes.device)
+                    pred_box = pred_boxes[ar, q]
+                    pred_risk = pred_risks[ar, q]
+                else:
+                    pred_box, pred_risk = out
 
-                # per-sample
-                for i in range(pred_box.shape[0]):
+                # per-sample loop
+                batch_size_curr = pred_box.shape[0]
+                for i in range(batch_size_curr):
                     if n_done >= args.max_vis:
                         break
 
-                    m = meta[i]
-                    sample_id = m.get("sample_id", f"idx_{n_done}")
-                    keyframe_path = m.get("keyframe_path")
-                    if not keyframe_path or not os.path.exists(keyframe_path):
-                        # if missing, skip vis but still write json
-                        keyframe_path = None
+                    # --- 修复部分 Start ---
+                    # 从 meta_batch 字典中，通过 key 取出第 i 个元素
+                    # 假设 meta_batch = {'sample_id': ('id1', 'id2'), 'keyframe_path': ('p1', 'p2'), ...}
+                    sample_id = meta_batch["sample_id"][i]
+                    keyframe_path = meta_batch["keyframe_path"][i]
+                    # --- 修复部分 End ---
 
+                    if not keyframe_path or not os.path.exists(keyframe_path):
+                        # if missing, skip vis but still might want to log? Let's skip vis.
+                        pass
+                    
                     pb = pred_box[i].detach().cpu().tolist()
                     gb = gt_box[i].detach().cpu().tolist()
                     pr = float(pred_risk[i].detach().cpu())
@@ -207,7 +273,7 @@ def main() -> None:
                     }
                     f_out.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
-                    if keyframe_path is not None:
+                    if keyframe_path and os.path.exists(keyframe_path):
                         out_path = os.path.join(args.out_dir, f"{sample_id}.jpg")
                         draw_one(
                             image_path=keyframe_path,
@@ -220,9 +286,6 @@ def main() -> None:
                         )
 
                     n_done += 1
-
-                if n_done >= args.max_vis:
-                    break
 
     print(f"Wrote: {pred_jsonl_path}")
     print(f"Saved {n_done} visualizations to: {args.out_dir}")

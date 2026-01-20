@@ -84,7 +84,15 @@ def evaluate(model: torch.nn.Module, loader: DataLoader, device: torch.device, l
         gt_box = batch["gt_box"].to(device, non_blocking=True)
         gt_risk = batch["gt_risk"].to(device, non_blocking=True)
 
-        pred_box, pred_risk = model(pixel_values)
+        out = model(pixel_values)
+        if isinstance(out, tuple) and len(out) == 2 and out[0].dim() == 3:
+            pred_boxes, pred_risks = out
+            q = pred_risks.argmax(dim=1)
+            bidx = torch.arange(pred_boxes.shape[0], device=pred_boxes.device)
+            pred_box = pred_boxes[bidx, q]
+            pred_risk = pred_risks[bidx, q]
+        else:
+            pred_box, pred_risk = out
         loss_box = F.l1_loss(pred_box, gt_box)
         loss_risk = F.mse_loss(pred_risk, gt_risk)
         loss = lambda_box * loss_box + lambda_risk * loss_risk
@@ -130,6 +138,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--img_size", type=int, default=224)
     p.add_argument("--topk_targets", type=int, default=1)
 
+    p.add_argument("--num_queries", type=int, default=1)
+
     p.add_argument("--batch_size", type=int, default=8)
     p.add_argument("--num_workers", type=int, default=8)
 
@@ -157,7 +167,7 @@ def main() -> None:
     )
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
-    model = FastSystemPhase1(img_size=args.img_size, pretrained=args.pretrained, freeze_backbone=args.freeze_backbone)
+    model = FastSystemPhase1(img_size=args.img_size, pretrained=args.pretrained, freeze_backbone=args.freeze_backbone, num_queries=args.num_queries)
     load_ckpt(model, args.ckpt)
     model.to(device)
 
