@@ -102,6 +102,9 @@ class VideoSwinTinyBackbone(nn.Module):
 
 def build_backbone(name: str = "swin_t", pretrained: bool = True, freeze: bool = False) -> nn.Module:
     name = name.lower()
-    if name in {"swin_t", "swin_tiny", "videoswin_t"}:
+    if name in {"swin_t", "swin_tiny", "videoswin_t", "swin3d_t", "swin3d_tiny", "video_swin_tiny"}:
         return VideoSwinTinyBackbone(pretrained=pretrained, freeze=freeze)
     raise ValueError(f"Unknown backbone: {name}")
+
+# ✅ 新增这一行：为类做一个别名，适配 GPT 的新代码
+VideoSwinBackboneWrapper = VideoSwinTinyBackbone

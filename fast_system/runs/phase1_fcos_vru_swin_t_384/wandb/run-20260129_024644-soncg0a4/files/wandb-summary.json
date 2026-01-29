@@ -1,0 +1,1 @@
+{"global_step":14100,"train/step_in_epoch":141,"_runtime":15154.741491349,"train/loss_epoch":0.6657857894897461,"epoch":99,"_wandb":{"runtime":15154},"train/loss_step":0.6527906060218811,"_step":14100,"val/iou_best_topk":0.499096178287669,"val/iou_primary":0.4312924566479477,"_timestamp":1.7696411596872807e+09,"lr":0,"train/epoch":99}

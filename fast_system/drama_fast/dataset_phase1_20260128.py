@@ -91,9 +91,9 @@ class DramaFastDataset(Dataset):
                     continue
                 self.samples.append(json.loads(line))
 
-        self.mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32).view(1, 3, 1, 1)
-        self.std  = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32).view(1, 3, 1, 1)
-
+        # 保留你原本的 Normalization
+        self.mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1, 1)
+        self.std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1, 1)
 
     def __len__(self):
         return len(self.samples)
@@ -195,10 +195,9 @@ class DramaFastDataset(Dataset):
         # 3) Sample T frame paths and load frames
         frame_paths = self._sample_frame_paths(files_sorted, keyframe_path)
         frames = [self._resize_to_tensor(self._load_image_rgb(p)) for p in frame_paths]
-        # 原来：[T,3,H,W] -> [3,T,H,W]
-        video = torch.stack(frames, dim=0)  # [T,3,H,W]
+        # [T,3,H,W] -> [3,T,H,W]
+        video = torch.stack(frames, dim=0).permute(1, 0, 2, 3)
         video = (video - self.mean) / self.std
-        
         # 4) Targets
         targets = item.get("targets", [])
 
@@ -235,7 +234,7 @@ class DramaFastDataset(Dataset):
 
         out: Dict[str, Any] = {
 
-            "pixel_values": video,  # [T, 3, H, W]
+            "pixel_values": video,  # [3, T, 224, 224]
             "gt_box": gt_box,        # [4] normalized xyxy
             "gt_risk": gt_risk,      # scalar in [0,1]
             "gt_boxes_topk": boxes_topk,
