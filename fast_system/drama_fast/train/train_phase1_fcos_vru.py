@@ -2,6 +2,27 @@
 # 建议指定 CUDA 设备，防止抢占
 export CUDA_VISIBLE_DEVICES=0,1,2,3 
 
+# 20260129改进版：运行训练
+torchrun --nproc_per_node=4 -m drama_fast.train.train_phase1_fcos_vru \
+  --ddp \
+  --train_jsonl ./splits_v3/train.jsonl \
+  --val_jsonl   ./splits_v3/val.jsonl \
+  --data_root   $DRAMA_DATA_ROOT \
+  --out_dir     ./runs/phase1_fcos_vru_swin_t_384 \
+  --batch_size 8 \
+  --epochs 50 \
+  --img_size 384 \
+  --num_frames 8 \
+  --topk_targets 5 \
+  --pretrained \
+  --lr 1e-4 \
+  --warmup_ratio 0.05 \
+  --use_letterbox \
+  --flip_prob 0.5 \
+  --letterbox_fill 114 \
+  --wandb \
+  --wandb_run_name "SwinT-FCOS-VRU-384"
+
 # 运行训练
 torchrun --nproc_per_node=4 -m drama_fast.train.train_phase1_fcos_vru \
   --ddp \
@@ -167,6 +188,20 @@ def eval_iou(
 
     for batch in dl:
         clip = batch["pixel_values"].to(device, non_blocking=True)           # [B,T,3,H,W] (after our dataset fix)
+        # ---------- shape check / auto-fix ----------
+        if clip.dim() != 5:
+            raise ValueError(f"Unexpected clip dim: {clip.shape}")
+
+        # 常见两种：BTCHW 或 BCTHW
+        if clip.shape[2] == 3:
+            # [B,T,3,H,W] ✅ 训练代码按这个格式走
+            pass
+        elif clip.shape[1] == 3:
+            # [B,3,T,H,W] -> 转成 [B,T,3,H,W]
+            clip = clip.permute(0, 2, 1, 3, 4).contiguous()
+        else:
+            raise ValueError(f"Cannot infer channel dim from clip: {clip.shape}")
+        # -------------------------------------------
         gt_box = batch["gt_box"].to(device, non_blocking=True)               # [B,4] normalized
         gt_boxes_topk = batch["gt_boxes_topk"].to(device, non_blocking=True) # [B,K,4] normalized
         gt_mask_topk = batch["gt_mask_topk"].to(device, non_blocking=True)   # [B,K] bool
@@ -228,6 +263,14 @@ def parse_args():
     p.add_argument("--img_size", type=int, default=384)
     p.add_argument("--stride", type=int, default=2)
     p.add_argument("--topk_targets", type=int, default=5)
+    
+    # ✅ new: dataset aug/letterbox args (for experiment record)
+    p.add_argument("--use_letterbox", action=argparse.BooleanOptionalAction, default=True,
+                   help="Use letterbox resize to keep aspect ratio (default: True). Use --no-use_letterbox to disable.")
+    p.add_argument("--flip_prob", type=float, default=0.5,
+                   help="Horizontal flip probability for TRAIN set only. Val set is forced to 0.0.")
+    p.add_argument("--letterbox_fill", type=int, default=114,
+                   help="Fill value (0-255) for letterbox padding background.")
 
     # model
     p.add_argument("--num_classes", type=int, default=1, help="Default=1 (VRU). Set to 2 only if your dataset provides per-box class labels.")
@@ -284,7 +327,7 @@ def main():
         seed_everything(args.seed + get_rank())
 
         out_dir = Path(args.out_dir)
-
+        
         # ✅ 先由主进程创建目录/写参数
         if is_main_process():
             out_dir.mkdir(parents=True, exist_ok=True)
@@ -303,8 +346,8 @@ def main():
         cfg = FCOSConfig(num_classes=args.num_classes)
         if is_main_process():
             (out_dir / "fcos_cfg.json").write_text(json.dumps(asdict(cfg), indent=2))
-
-        # Datasets
+            
+        # Datasets & Dataloaders
         train_ds = DatasetPhase1(
             jsonl_path=args.train_jsonl,
             data_root=args.data_root,
@@ -313,7 +356,11 @@ def main():
             stride=args.stride,
             topk_targets=args.topk_targets,
             return_meta=False,
+            use_letterbox=args.use_letterbox,
+            flip_prob=float(args.flip_prob),
+            letterbox_fill=int(args.letterbox_fill),
         )
+
         val_ds = DatasetPhase1(
             jsonl_path=args.val_jsonl,
             data_root=args.data_root,
@@ -322,7 +369,11 @@ def main():
             stride=args.stride,
             topk_targets=args.topk_targets,
             return_meta=False,
+            use_letterbox=args.use_letterbox,
+            flip_prob=0.0,  # ✅ val 强制不增强
+            letterbox_fill=int(args.letterbox_fill),
         )
+
 
         train_sampler = DistributedSampler(train_ds, shuffle=True) if args.ddp else None
         # val_sampler = DistributedSampler(val_ds, shuffle=False) if args.ddp else None
@@ -373,7 +424,8 @@ def main():
                 return float(current_step) / float(max(1, warmup_steps))
             # 2. Cosine Decay 阶段：余弦衰减
             progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
-            return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+            min_factor = args.min_lr / args.lr
+            return max(min_factor, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
         scheduler = LambdaLR(optimizer, lr_lambda)
 
@@ -389,6 +441,22 @@ def main():
 
             for batch in train_dl:
                 clip = batch["pixel_values"].to(device, non_blocking=True)           # [B,T,3,H,W]
+                # ---------- shape check / auto-fix ----------
+                if clip.dim() != 5:
+                    raise ValueError(f"Unexpected clip dim: {clip.shape}")
+
+                # 常见两种：BTCHW 或 BCTHW
+                if clip.shape[2] == 3:
+                    # [B,T,3,H,W] ✅ 训练代码按这个格式走
+                    pass
+                elif clip.shape[1] == 3:
+                    # [B,3,T,H,W] -> 转成 [B,T,3,H,W]
+                    clip = clip.permute(0, 2, 1, 3, 4).contiguous()
+                else:
+                    raise ValueError(f"Cannot infer channel dim from clip: {clip.shape}")
+                # -------------------------------------------
+                if is_main_process() and epoch == 0 and n_steps == 0:
+                    print("clip.shape =", clip.shape)
                 gt_boxes_topk = batch["gt_boxes_topk"].to(device, non_blocking=True) # [B,K,4] normalized
                 gt_mask_topk = batch["gt_mask_topk"].to(device, non_blocking=True)   # [B,K] bool
 

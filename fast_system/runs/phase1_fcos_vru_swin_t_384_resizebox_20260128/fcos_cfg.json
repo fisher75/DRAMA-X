@@ -1,0 +1,26 @@
+{
+  "num_classes": 1,
+  "feat_channels": 256,
+  "strides": [
+    8,
+    16,
+    32
+  ],
+  "sizes_of_interest": [
+    [
+      0.0,
+      64.0
+    ],
+    [
+      64.0,
+      128.0
+    ],
+    [
+      128.0,
+      100000000.0
+    ]
+  ],
+  "center_sampling_radius": 1.5,
+  "focal_alpha": 0.25,
+  "focal_gamma": 2.0
+}
