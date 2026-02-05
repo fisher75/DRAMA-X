@@ -1,0 +1,158 @@
+_wandb:
+    value:
+        cli_version: 0.24.0
+        e:
+            gwh9kpgwt3n7o2qwvv74sobxiszemu07:
+                args:
+                    - --train_label_jsonl
+                    - ./splits_v3/train.jsonl
+                    - --train_proposals_jsonl
+                    - ./splits_v3/train_proposals_yolo.jsonl
+                    - --val_label_jsonl
+                    - ./splits_v3/val.jsonl
+                    - --val_proposals_jsonl
+                    - ./splits_v3/val_proposals_yolo.jsonl
+                    - --data_root
+                    - /data2/automan/data/drama_data
+                    - --out_dir
+                    - ./runs/_smoke_stage2_risk_yolo
+                    - --img_size
+                    - "384"
+                    - --num_frames
+                    - "8"
+                    - --frame_stride
+                    - "1"
+                    - --topk_proposals
+                    - "50"
+                    - --use_letterbox
+                    - --letterbox_fill
+                    - "114"
+                    - --iou_pos_thr
+                    - "0.5"
+                    - --epochs
+                    - "1"
+                    - --batch_size
+                    - "1"
+                    - --lr
+                    - "1e-4"
+                    - --warmup_ratio
+                    - "0.05"
+                    - --max_steps
+                    - "10"
+                    - --wandb
+                    - --wandb_project
+                    - DRAMAX_stage2
+                    - --run_name
+                    - smoke_yolo_top50
+                cpu_count: 24
+                cpu_count_logical: 48
+                cudaVersion: "13.1"
+                disk:
+                    /:
+                        total: "1888559353856"
+                        used: "442818121728"
+                email: chi1996705@outlook.com
+                executable: /workspace/conda_envs/dramax/bin/python
+                git:
+                    commit: 7a5e4cb62446c1de86cd5578ea93d1afdd225f06
+                    remote: https://github.com/fisher75/DRAMA-X.git
+                gpu: NVIDIA RTX A5000
+                gpu_count: 4
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-13ad800e-d383-cdc9-7f6e-13ed435dff01
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-0fb981e9-ebc8-eccf-1a32-9717c3dacd11
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-013a4836-077b-fa20-2fc7-31bdca6eecde
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-12a00fdc-6946-8af4-f7d8-d514eb88d457
+                host: colab-automan
+                memory:
+                    total: "202427047936"
+                os: Linux-6.8.0-90-generic-x86_64-with-glibc2.35
+                program: -m drama_fast.train.train_stage2_risk
+                python: CPython 3.10.19
+                root: /workspace/chz/code/DRAMA-X/fast_system
+                startedAt: "2026-02-04T11:28:57.796620Z"
+                writerId: gwh9kpgwt3n7o2qwvv74sobxiszemu07
+        m: []
+        python_version: 3.10.19
+        t:
+            "1":
+                - 1
+                - 41
+            "2":
+                - 1
+                - 41
+            "3":
+                - 13
+                - 16
+            "4": 3.10.19
+            "5": 0.24.0
+            "12": 0.24.0
+            "13": linux-x86_64
+batch_size:
+    value: 1
+data_root:
+    value: /data2/automan/data/drama_data
+epochs:
+    value: 1
+frame_stride:
+    value: 1
+freeze_backbone:
+    value: false
+img_size:
+    value: 384
+iou_pos_thr:
+    value: 0.5
+letterbox_fill:
+    value: 114
+lr:
+    value: 0.0001
+max_steps:
+    value: 10
+num_frames:
+    value: 8
+out_dir:
+    value: ./runs/_smoke_stage2_risk_yolo
+pretrained_backbone:
+    value: false
+seed:
+    value: 42
+topk_proposals:
+    value: 50
+train_label_jsonl:
+    value: ./splits_v3/train.jsonl
+train_proposals_jsonl:
+    value: ./splits_v3/train_proposals_yolo.jsonl
+use_letterbox:
+    value: true
+val_label_jsonl:
+    value: ./splits_v3/val.jsonl
+val_proposals_jsonl:
+    value: ./splits_v3/val_proposals_yolo.jsonl
+wandb:
+    value: true
+wandb_project:
+    value: DRAMAX_stage2
+wandb_run_name:
+    value: smoke_yolo_top50
+warmup_ratio:
+    value: 0.05
+weight_decay:
+    value: 0.05
+workers_per_gpu:
+    value: 4

@@ -98,9 +98,8 @@ class DramaFastDataset(Dataset):
                     continue
                 self.samples.append(json.loads(line))
 
-        self.mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32).view(3, 1, 1, 1)
-        self.std  = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32).view(3, 1, 1, 1)
-
+        self.mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32).view(1, 3, 1, 1)
+        self.std  = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32).view(1, 3, 1, 1)
 
 
     def __len__(self):
@@ -217,7 +216,7 @@ class DramaFastDataset(Dataset):
             frames = [self._resize_to_tensor(self._load_image_rgb(p)) for p in frame_paths]
 
 
-        video = torch.stack(frames, dim=0).permute(1, 0, 2, 3).contiguous()  # [3,T,S,S]
+        video = torch.stack(frames, dim=0)  # [T,3,S,S]
         video = (video - self.mean) / self.std
 
         

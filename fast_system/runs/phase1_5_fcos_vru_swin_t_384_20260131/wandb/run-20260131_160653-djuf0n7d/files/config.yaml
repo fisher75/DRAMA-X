@@ -1,0 +1,184 @@
+_wandb:
+    value:
+        cli_version: 0.24.0
+        e:
+            v4ap9wbdh8aqvpqo6qxu02mfmczsjsbs:
+                args:
+                    - --ddp
+                    - --train_jsonl
+                    - ./splits_v3/train.jsonl
+                    - --val_jsonl
+                    - ./splits_v3/val.jsonl
+                    - --data_root
+                    - /data2/automan/data/drama_data
+                    - --out_dir
+                    - ./runs/phase1_5_fcos_vru_swin_t_384
+                    - --batch_size
+                    - "8"
+                    - --epochs
+                    - "50"
+                    - --img_size
+                    - "384"
+                    - --num_frames
+                    - "8"
+                    - --topk_targets
+                    - "5"
+                    - --pretrained
+                    - --lr
+                    - "1e-4"
+                    - --warmup_ratio
+                    - "0.05"
+                    - --use_letterbox
+                    - --flip_prob
+                    - "0.5"
+                    - --letterbox_fill
+                    - "114"
+                    - --workers_per_gpu
+                    - "4"
+                    - --wandb
+                    - --wandb_run_name
+                    - SwinT-FCOS-VRU-384-phase1.5
+                cpu_count: 24
+                cpu_count_logical: 48
+                cudaVersion: "13.1"
+                disk:
+                    /:
+                        total: "1888559353856"
+                        used: "432408322048"
+                email: chi1996705@outlook.com
+                executable: /workspace/conda_envs/dramax/bin/python3.10
+                git:
+                    commit: 7a5e4cb62446c1de86cd5578ea93d1afdd225f06
+                    remote: https://github.com/fisher75/DRAMA-X.git
+                gpu: NVIDIA RTX A5000
+                gpu_count: 4
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-13ad800e-d383-cdc9-7f6e-13ed435dff01
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-0fb981e9-ebc8-eccf-1a32-9717c3dacd11
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-013a4836-077b-fa20-2fc7-31bdca6eecde
+                    - architecture: Ampere
+                      cudaCores: 8192
+                      memoryTotal: "24146608128"
+                      name: NVIDIA RTX A5000
+                      uuid: GPU-12a00fdc-6946-8af4-f7d8-d514eb88d457
+                host: colab-automan
+                memory:
+                    total: "202427047936"
+                os: Linux-6.8.0-90-generic-x86_64-with-glibc2.35
+                program: -m drama_fast.train.train_phase1_5_fcos_vru
+                python: CPython 3.10.19
+                root: runs/phase1_5_fcos_vru_swin_t_384
+                startedAt: "2026-01-31T08:06:53.765360Z"
+                writerId: v4ap9wbdh8aqvpqo6qxu02mfmczsjsbs
+        m: []
+        python_version: 3.10.19
+        t:
+            "1":
+                - 1
+                - 41
+            "2":
+                - 1
+                - 41
+            "3":
+                - 2
+                - 13
+                - 15
+                - 16
+                - 61
+            "4": 3.10.19
+            "5": 0.24.0
+            "12": 0.24.0
+            "13": linux-x86_64
+amp:
+    value: false
+backbone:
+    value: swin_t
+batch_size:
+    value: 8
+batch_size_per_gpu:
+    value: null
+data_root:
+    value: /data2/automan/data/drama_data
+ddp:
+    value: true
+epochs:
+    value: 50
+feat_channels:
+    value: 256
+flip_prob:
+    value: 0.5
+img_size:
+    value: 384
+letterbox_fill:
+    value: 114
+local_rank:
+    value: 0
+log_every:
+    value: null
+lr:
+    value: 0.0001
+min_lr:
+    value: 1e-06
+nms_thr:
+    value: 0.6
+num_classes:
+    value: 1
+num_frames:
+    value: 8
+out_dir:
+    value: ./runs/phase1_5_fcos_vru_swin_t_384
+pretrained:
+    value: true
+radius:
+    value: 1.5
+score_thr:
+    value: 0.05
+seed:
+    value: 42
+stride:
+    value: 2
+strides:
+    value:
+        - 8
+        - 16
+        - 32
+topk:
+    value: 300
+topk_targets:
+    value: 5
+train_jsonl:
+    value: ./splits_v3/train.jsonl
+use_letterbox:
+    value: true
+val_jsonl:
+    value: ./splits_v3/val.jsonl
+wandb:
+    value: true
+wandb_entity:
+    value: null
+wandb_log_every:
+    value: 50
+wandb_project:
+    value: aumovio
+wandb_run_name:
+    value: SwinT-FCOS-VRU-384-phase1.5
+wandb_tags:
+    value: ""
+warmup_ratio:
+    value: 0.05
+weight_decay:
+    value: 0.05
+workers_per_gpu:
+    value: 4

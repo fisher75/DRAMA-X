@@ -1,0 +1,1 @@
+{"val/recall@5":0.5927835051546392,"val/num_samples":582,"train/epoch_loss":1.242510270014356,"_runtime":768.342337824,"val/top1_iou":0.284446148739494,"val/recall@1":0.34192439862542956,"val/recall@10":0.4020618556701031,"train/lr":0,"_timestamp":1.7702100338610044e+09,"_step":4535,"epoch":1,"_wandb":{"runtime":768},"train/loss":0.49092838168144226}

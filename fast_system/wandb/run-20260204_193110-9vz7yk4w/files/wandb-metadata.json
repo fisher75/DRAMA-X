@@ -1,0 +1,101 @@
+{
+  "os": "Linux-6.8.0-90-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.10.19",
+  "startedAt": "2026-02-04T11:31:10.867456Z",
+  "args": [
+    "--train_label_jsonl",
+    "./splits_v3/train.jsonl",
+    "--train_proposals_jsonl",
+    "./splits_v3/train_proposals_yolo.jsonl",
+    "--val_label_jsonl",
+    "./splits_v3/val.jsonl",
+    "--val_proposals_jsonl",
+    "./splits_v3/val_proposals_yolo.jsonl",
+    "--data_root",
+    "/data2/automan/data/drama_data",
+    "--out_dir",
+    "./runs/_smoke_stage2_risk_yolo",
+    "--img_size",
+    "384",
+    "--num_frames",
+    "8",
+    "--frame_stride",
+    "1",
+    "--topk_proposals",
+    "50",
+    "--use_letterbox",
+    "--letterbox_fill",
+    "114",
+    "--iou_pos_thr",
+    "0.5",
+    "--epochs",
+    "1",
+    "--batch_size",
+    "1",
+    "--lr",
+    "1e-4",
+    "--warmup_ratio",
+    "0.05",
+    "--max_steps",
+    "10",
+    "--wandb",
+    "--wandb_project",
+    "DRAMAX_stage2",
+    "--run_name",
+    "smoke_yolo_top50"
+  ],
+  "program": "-m drama_fast.train.train_stage2_risk",
+  "git": {
+    "remote": "https://github.com/fisher75/DRAMA-X.git",
+    "commit": "7a5e4cb62446c1de86cd5578ea93d1afdd225f06"
+  },
+  "email": "chi1996705@outlook.com",
+  "root": "/workspace/chz/code/DRAMA-X/fast_system",
+  "host": "colab-automan",
+  "executable": "/workspace/conda_envs/dramax/bin/python",
+  "cpu_count": 24,
+  "cpu_count_logical": 48,
+  "gpu": "NVIDIA RTX A5000",
+  "gpu_count": 4,
+  "disk": {
+    "/": {
+      "total": "1888559353856",
+      "used": "442818220032"
+    }
+  },
+  "memory": {
+    "total": "202427047936"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA RTX A5000",
+      "memoryTotal": "24146608128",
+      "cudaCores": 8192,
+      "architecture": "Ampere",
+      "uuid": "GPU-13ad800e-d383-cdc9-7f6e-13ed435dff01"
+    },
+    {
+      "name": "NVIDIA RTX A5000",
+      "memoryTotal": "24146608128",
+      "cudaCores": 8192,
+      "architecture": "Ampere",
+      "uuid": "GPU-0fb981e9-ebc8-eccf-1a32-9717c3dacd11"
+    },
+    {
+      "name": "NVIDIA RTX A5000",
+      "memoryTotal": "24146608128",
+      "cudaCores": 8192,
+      "architecture": "Ampere",
+      "uuid": "GPU-013a4836-077b-fa20-2fc7-31bdca6eecde"
+    },
+    {
+      "name": "NVIDIA RTX A5000",
+      "memoryTotal": "24146608128",
+      "cudaCores": 8192,
+      "architecture": "Ampere",
+      "uuid": "GPU-12a00fdc-6946-8af4-f7d8-d514eb88d457"
+    }
+  ],
+  "cudaVersion": "13.1",
+  "writerId": "ir6m1x4rck0v7sqmptbjk0d1vhf4qtjn"
+}

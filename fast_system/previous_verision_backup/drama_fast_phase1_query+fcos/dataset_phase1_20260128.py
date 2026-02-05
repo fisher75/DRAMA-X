@@ -62,17 +62,10 @@ class DramaFastDataset(Dataset):
         topk_targets: int = 1,
         sort_targets_by: str = "risk_score",  # or 'none'
         return_meta: bool = True,
-        use_letterbox: bool = True,
-        flip_prob: float = 0.5,
-        letterbox_fill: int = 114,
     ):
         self.jsonl_path = jsonl_path
         self.data_root = data_root
         self.img_size = img_size
-        self.use_letterbox = use_letterbox
-        self.flip_prob = flip_prob
-        self.letterbox_fill = int(letterbox_fill)
-
         
         if topk is not None:
             topk_targets = topk
@@ -98,10 +91,9 @@ class DramaFastDataset(Dataset):
                     continue
                 self.samples.append(json.loads(line))
 
-        self.mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32).view(3, 1, 1, 1)
-        self.std  = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32).view(3, 1, 1, 1)
-
-
+        # 保留你原本的 Normalization
+        self.mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1, 1)
+        self.std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1, 1)
 
     def __len__(self):
         return len(self.samples)
@@ -200,27 +192,12 @@ class DramaFastDataset(Dataset):
         key_img = self._load_image_rgb(keyframe_path)
         W, H = key_img.size
 
-        # 3) Sample T frames
+        # 3) Sample T frame paths and load frames
         frame_paths = self._sample_frame_paths(files_sorted, keyframe_path)
-
-        if self.use_letterbox:
-            sx, sy, new_w, new_h, pad_x, pad_y = self._letterbox_params(W, H)
-            frames = [
-                self._letterbox_to_tensor(self._load_image_rgb(p), new_w, new_h, pad_x, pad_y)
-                for p in frame_paths
-            ]
-        else:
-            new_w, new_h = self.img_size, self.img_size
-            pad_x, pad_y = 0, 0
-            sx = self.img_size / float(W) if W > 0 else 1.0
-            sy = self.img_size / float(H) if H > 0 else 1.0
-            frames = [self._resize_to_tensor(self._load_image_rgb(p)) for p in frame_paths]
-
-
-        video = torch.stack(frames, dim=0).permute(1, 0, 2, 3).contiguous()  # [3,T,S,S]
+        frames = [self._resize_to_tensor(self._load_image_rgb(p)) for p in frame_paths]
+        # [T,3,H,W] -> [3,T,H,W]
+        video = torch.stack(frames, dim=0).permute(1, 0, 2, 3)
         video = (video - self.mean) / self.std
-
-        
         # 4) Targets
         targets = item.get("targets", [])
 
@@ -239,40 +216,13 @@ class DramaFastDataset(Dataset):
             topk = min(K, len(targets))
             top_targets = targets[:topk]
 
-            if self.use_letterbox:
-                boxes = [
-                    self._normalize_box_xyxy_letterbox(t["bbox_xyxy"], W=W, H=H, sx=sx, sy=sy, pad_x=pad_x, pad_y=pad_y)
-                    for t in top_targets
-                ]
-            else:
-                boxes = [self._normalize_box_xyxy(t["bbox_xyxy"], W=W, H=H) for t in top_targets]
-
+            boxes = [self._normalize_box_xyxy(t["bbox_xyxy"], W=W, H=H) for t in top_targets]
             risks = [float(t.get("risk_score", 0.0)) for t in top_targets]
 
             if boxes:
                 boxes_topk[:topk] = torch.stack(boxes, dim=0)
                 risks_topk[:topk] = torch.tensor(risks, dtype=torch.float32).clamp(0, 1)
                 mask_topk[:topk] = True
-        
-        do_flip = (self.flip_prob > 0) and (np.random.rand() < self.flip_prob)
-        if do_flip:
-            # video: [T,3,S,S]
-            video = torch.flip(video, dims=[3])
-
-            valid = mask_topk  # [K] bool
-            if valid.any().item():
-                x1 = boxes_topk[valid, 0].clone()
-                x2 = boxes_topk[valid, 2].clone()
-                boxes_topk[valid, 0] = 1.0 - x2
-                boxes_topk[valid, 2] = 1.0 - x1
-
-                # enforce order
-                x1n = torch.minimum(boxes_topk[valid, 0], boxes_topk[valid, 2])
-                x2n = torch.maximum(boxes_topk[valid, 0], boxes_topk[valid, 2])
-                boxes_topk[valid, 0], boxes_topk[valid, 2] = x1n, x2n
-
-                boxes_topk[valid].clamp_(0.0, 1.0)
-
 
         # primary supervision keeps backward compatibility
         if bool(mask_topk[0]):
@@ -284,7 +234,7 @@ class DramaFastDataset(Dataset):
 
         out: Dict[str, Any] = {
 
-            "pixel_values": video,  # [T, 3, H, W]
+            "pixel_values": video,  # [3, T, 224, 224]
             "gt_box": gt_box,        # [4] normalized xyxy
             "gt_risk": gt_risk,      # scalar in [0,1]
             "gt_boxes_topk": boxes_topk,
@@ -301,73 +251,9 @@ class DramaFastDataset(Dataset):
                 "orig_size": (W, H),
                 "frame_paths": frame_paths,
                 "risk_label": item.get("risk_label", None),
-                "letterbox": {
-                    "use_letterbox": bool(self.use_letterbox),
-                    "sx": float(sx),
-                    "sy": float(sy),
-                    "pad_x": int(pad_x),
-                    "pad_y": int(pad_y),
-                    "new_w": int(new_w),
-                    "new_h": int(new_h),
-                    "img_size": int(self.img_size),
-                },
-
             }
 
         return out
-    
-    def _letterbox_params(self, W: int, H: int):
-        S = int(self.img_size)
-        scale = float(S) / float(max(W, H))  # keep aspect
-        new_w = int(round(W * scale))
-        new_h = int(round(H * scale))
-        new_w = min(new_w, S)
-        new_h = min(new_h, S)
-        pad_x = (S - new_w) // 2
-        pad_y = (S - new_h) // 2
-
-        # IMPORTANT: use realized scales after rounding
-        sx = new_w / float(W) if W > 0 else 1.0
-        sy = new_h / float(H) if H > 0 else 1.0
-        return sx, sy, new_w, new_h, pad_x, pad_y
-
-
-    def _letterbox_to_tensor(self, img: Image.Image, new_w: int, new_h: int, pad_x: int, pad_y: int) -> torch.Tensor:
-        S = int(self.img_size)
-        img_resized = img.resize((new_w, new_h), resample=Image.BILINEAR)
-        canvas = Image.new("RGB", (S, S), color=(self.letterbox_fill,)*3)
-        canvas.paste(img_resized, (pad_x, pad_y))
-        arr = np.array(canvas)
-        t = torch.from_numpy(arr).permute(2, 0, 1).float() / 255.0
-        return t
-
-
-    def _normalize_box_xyxy_letterbox(self, box_xyxy, W, H, sx, sy, pad_x, pad_y):
-        """
-        box in original pixel -> transform to letterboxed pixel -> normalize by img_size
-        Return [x1,y1,x2,y2] in [0,1] w.r.t. self.img_size
-        """
-        x1, y1, x2, y2 = box_xyxy
-
-        # clamp in original image space
-        x1 = max(0.0, min(float(x1), float(W)))
-        x2 = max(0.0, min(float(x2), float(W)))
-        y1 = max(0.0, min(float(y1), float(H)))
-        y2 = max(0.0, min(float(y2), float(H)))
-        if x2 < x1:
-            x1, x2 = x2, x1
-        if y2 < y1:
-            y1, y2 = y2, y1
-
-        # to letterbox pixel space
-        x1 = x1 * sx + pad_x
-        x2 = x2 * sx + pad_x
-        y1 = y1 * sy + pad_y
-        y2 = y2 * sy + pad_y
-
-        S = float(self.img_size)
-        return torch.tensor([x1 / S, y1 / S, x2 / S, y2 / S], dtype=torch.float32).clamp(0, 1)
-
 
 
 def default_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
